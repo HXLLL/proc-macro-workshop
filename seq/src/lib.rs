@@ -187,10 +187,10 @@ fn replace(mut cur: Cursor, ident: &Ident, n: i32, output: &mut TokenStream2) {
             TT::Ident(id) => {
                 let mut span = id.span();
                 let mut tokens = vec![id];
-                let mut is_lit = tokens.len() == 1;
                 get_tilde_group(&mut cur, &mut tokens, &mut span);
                 eprintln!("tilde group: {:?}", tokens);
                 let mut new_token = String::new();
+                let mut is_lit = true;
 
                 for token in tokens {
                     let t = if ident == &token {
