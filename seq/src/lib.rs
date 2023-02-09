@@ -1,6 +1,6 @@
 use proc_macro::TokenStream;
 use proc_macro2::{
-    Delimiter, Group, Ident, Literal, Punct, Span, TokenStream as TokenStream2,
+    Delimiter, Group, Ident, Literal, Span, TokenStream as TokenStream2,
     TokenTree as TT,
 };
 use syn::{
@@ -13,12 +13,12 @@ use syn::{
 
 struct Seq {
     ident: Ident,
-    in_token: Token![in],
+    _in_token: Token![in],
     start: LitInt,
-    two_dot_token: Token![..],
+    _two_dot_token: Token![..],
     equal_token: Option<Token![=]>,
     end: LitInt,
-    brace_token: Brace,
+    _brace_token: Brace,
     body: TokenStream2,
 }
 
@@ -33,12 +33,12 @@ impl Parse for Seq {
         let content;
         Ok(Seq {
             ident: input.parse()?,
-            in_token: input.parse()?,
+            _in_token: input.parse()?,
             start: input.parse()?,
-            two_dot_token: input.parse()?,
+            _two_dot_token: input.parse()?,
             equal_token: input.parse().ok(),
             end: input.parse()?,
-            brace_token: braced!(content in input),
+            _brace_token: braced!(content in input),
             body: content.parse()?,
         })
     }
@@ -91,13 +91,6 @@ fn process(
     output
 }
 
-fn get_group(t: TT) -> Group {
-    match t {
-        TT::Group(g) => g,
-        _ => unreachable!(),
-    }
-}
-
 fn has_qualified_section(mut cur: Cursor) -> bool {
     while let Some((token, next)) = cur.token_tree() {
         cur = next;
@@ -110,7 +103,7 @@ fn has_qualified_section(mut cur: Cursor) -> bool {
                 }
             }
             TT::Punct(p) if p.as_char() == '#' => {
-                if at_qualified_section(&cur) {
+                if let Some(_) = get_qualified_group(&cur) {
                     return true;
                 }
             }
@@ -132,10 +125,9 @@ fn repeat_qualified(
         match token {
             TT::Group(g) => {
                 let mut group_tokens = TokenStream2::new();
-                let cursor = TokenBuffer::new2(g.stream());
-                let cursor = cursor.begin();
+                let buffer = TokenBuffer::new2(g.stream());
                 repeat_qualified(
-                    cursor,
+                    buffer.begin(),
                     ident,
                     range.clone(),
                     &mut group_tokens,
@@ -145,12 +137,7 @@ fn repeat_qualified(
                 output.extend([TT::Group(group)]);
             }
             TT::Punct(p) if p.as_char() == '#' => {
-                if at_qualified_section(&cur) {
-                    let g;
-                    (g, cur) = cur.token_tree().unwrap();
-                    (_, cur) = cur.token_tree().unwrap();
-                    let g = get_group(g);
-
+                if let Some(g) = get_qualified_group(&cur) {
                     let buffer = TokenBuffer::new2(g.stream());
                     repeat(buffer.begin(), &ident, range.clone(), output);
                 } else {
@@ -173,16 +160,15 @@ fn repeat(
     }
 }
 
-fn at_qualified_section(cur: &Cursor) -> bool {
-    let tmp_cur = cur.clone();
-    if let Some((TT::Group(g), tmp_cur)) = tmp_cur.token_tree() {
+fn get_qualified_group(cur: &Cursor) -> Option<Group> {
+    if let Some((TT::Group(g), tmp_cur)) = cur.token_tree() {
         if let Some((TT::Punct(p), _)) = tmp_cur.token_tree() {
             if g.delimiter() == Delimiter::Parenthesis && p.as_char() == '*' {
-                return true;
+                return Some(g);
             }
         }
     }
-    false
+    None
 }
 
 fn replace(mut cur: Cursor, ident: &Ident, n: i32, output: &mut TokenStream2) {
@@ -192,9 +178,8 @@ fn replace(mut cur: Cursor, ident: &Ident, n: i32, output: &mut TokenStream2) {
         match token {
             TT::Group(g) => {
                 let mut group_tokens = TokenStream2::new();
-                let cursor = TokenBuffer::new2(g.stream());
-                let cursor = cursor.begin();
-                replace(cursor, ident, n, &mut group_tokens);
+                let buffer = TokenBuffer::new2(g.stream());
+                replace(buffer.begin(), ident, n, &mut group_tokens);
                 let mut group = Group::new(g.delimiter(), group_tokens);
                 group.set_span(g.span());
                 output.extend([TT::Group(group)]);
@@ -218,8 +203,8 @@ fn replace(mut cur: Cursor, ident: &Ident, n: i32, output: &mut TokenStream2) {
                 }
 
                 let new_token = if is_lit {
-                    // let lit: i32 = new_token.to_string().parse().unwrap();
-                    TT::Literal(Literal::i32_unsuffixed(n))
+                    let lit: i32 = new_token.to_string().parse().unwrap();
+                    TT::Literal(Literal::i32_unsuffixed(lit))
                 } else {
                     TT::Ident(Ident::new(&new_token, span))
                 };
@@ -231,18 +216,15 @@ fn replace(mut cur: Cursor, ident: &Ident, n: i32, output: &mut TokenStream2) {
 }
 
 fn get_tilde_group(cur: &mut Cursor, output: &mut Vec<Ident>, span: &mut Span) {
-    let mut tmp_cur = cur.clone();
-    while let Some((tilde_token, tmp_cur1)) = tmp_cur.punct() {
+    const JOIN_SPAN: bool = false;
+    while let Some((tilde_token, tmp_cur1)) = cur.punct() {
         if let Some((ident, tmp_cur2)) = tmp_cur1.ident() {
-            eprintln!(
-                "get_tilde_group processing {:?} {:?}",
-                tilde_token, ident
-            );
             if tilde_token.as_char() == '~' {
-                tmp_cur = tmp_cur2;
-                *cur = tmp_cur;
-                // *span = span.join(tilde_token.span()).unwrap();
-                // *span = span.join(ident.span()).unwrap();
+                *cur = tmp_cur2;
+                if JOIN_SPAN {
+                    *span = span.join(tilde_token.span()).unwrap();
+                    *span = span.join(ident.span()).unwrap();
+                }
                 output.push(ident);
             } else {
                 break;
