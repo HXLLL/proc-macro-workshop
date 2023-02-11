@@ -69,7 +69,7 @@ impl Seq {
 }
 
 fn lit_error(lit: Error) -> TokenStream2 {
-    let error_msg = format!("Literal error: {}", lit.to_string());
+    let error_msg = format!("Literal error: {lit}");
     Error::new(lit.span(), error_msg).to_compile_error()
 }
 
@@ -87,7 +87,7 @@ fn process(
         eprintln!("do not has qualified section");
         repeat(buffer.begin(), &ident, range, &mut output);
     }
-    eprintln!("{:?}", output);
+    eprintln!("{output:?}");
     output
 }
 
@@ -103,7 +103,7 @@ fn has_qualified_section(mut cur: Cursor) -> bool {
                 }
             }
             TT::Punct(p) if p.as_char() == '#' => {
-                if let Some(_) = get_qualified_group(&cur) {
+                if get_qualified_group(&cur).is_some() {
                     return true;
                 }
             }
@@ -121,7 +121,7 @@ fn repeat_qualified(
 ) {
     while let Some((token, next)) = cur.token_tree() {
         cur = next;
-        eprintln!("repeat qualified processing {:?}", token);
+        eprintln!("repeat qualified processing {token:?}");
         match token {
             TT::Group(g) => {
                 let mut group_tokens = TokenStream2::new();
@@ -139,7 +139,7 @@ fn repeat_qualified(
             TT::Punct(p) if p.as_char() == '#' => {
                 if let Some(g) = get_qualified_group(&cur) {
                     let buffer = TokenBuffer::new2(g.stream());
-                    repeat(buffer.begin(), &ident, range.clone(), output);
+                    repeat(buffer.begin(), ident, range.clone(), output);
                 } else {
                     output.extend([TT::Punct(p)]);
                 }
@@ -156,7 +156,7 @@ fn repeat(
     output: &mut TokenStream2,
 ) {
     for i in range {
-        replace(cur.clone(), &ident, i, output);
+        replace(cur, ident, i, output);
     }
 }
 
@@ -174,7 +174,7 @@ fn get_qualified_group(cur: &Cursor) -> Option<Group> {
 fn replace(mut cur: Cursor, ident: &Ident, n: i32, output: &mut TokenStream2) {
     while let Some((token, next)) = cur.token_tree() {
         cur = next;
-        eprintln!("replace processing {:?}", token);
+        eprintln!("replace processing {token:?}");
         match token {
             TT::Group(g) => {
                 let mut group_tokens = TokenStream2::new();
@@ -188,7 +188,7 @@ fn replace(mut cur: Cursor, ident: &Ident, n: i32, output: &mut TokenStream2) {
                 let mut span = id.span();
                 let mut tokens = vec![id];
                 get_tilde_group(&mut cur, &mut tokens, &mut span);
-                eprintln!("tilde group: {:?}", tokens);
+                eprintln!("tilde group: {tokens:?}");
                 let mut new_token = String::new();
                 let mut is_lit = true;
 
