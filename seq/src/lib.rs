@@ -87,7 +87,7 @@ fn process(
         eprintln!("do not has qualified section");
         repeat(buffer.begin(), &ident, range, &mut output);
     }
-    eprintln!("{output:?}");
+    eprintln!("macro output: {}", output.to_string());
     output
 }
 
@@ -103,7 +103,7 @@ fn has_qualified_section(mut cur: Cursor) -> bool {
                 }
             }
             TT::Punct(p) if p.as_char() == '#' => {
-                if get_qualified_group(&cur).is_some() {
+                if get_qualified_group(&mut cur).is_some() {
                     return true;
                 }
             }
@@ -137,7 +137,7 @@ fn repeat_qualified(
                 output.extend([TT::Group(group)]);
             }
             TT::Punct(p) if p.as_char() == '#' => {
-                if let Some(g) = get_qualified_group(&cur) {
+                if let Some(g) = get_qualified_group(&mut cur) {
                     let buffer = TokenBuffer::new2(g.stream());
                     repeat(buffer.begin(), ident, range.clone(), output);
                 } else {
@@ -160,10 +160,11 @@ fn repeat(
     }
 }
 
-fn get_qualified_group(cur: &Cursor) -> Option<Group> {
+fn get_qualified_group(cur: &mut Cursor) -> Option<Group> {
     if let Some((TT::Group(g), tmp_cur)) = cur.token_tree() {
-        if let Some((TT::Punct(p), _)) = tmp_cur.token_tree() {
+        if let Some((TT::Punct(p), new_cur)) = tmp_cur.token_tree() {
             if g.delimiter() == Delimiter::Parenthesis && p.as_char() == '*' {
+                *cur = new_cur;
                 return Some(g);
             }
         }
